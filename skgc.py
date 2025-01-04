@@ -19,6 +19,7 @@ class Server:
 
         self.edition = ""
         self.start_command = ""
+        self.stop_command = ""
         self.server_data = {}
 
         self.pid = None
@@ -35,11 +36,13 @@ class Server:
         if edition == "bedrock":
             self.edition = "bedrock"
             self.start_command = DEFAULT_START_COMMAND_BEDROCK
+            self.stop_command = "stop"
             self.server_data = {}
             self.pid = None
         else:
             self.edition = "java"
             self.start_command = DEFAULT_START_COMMAND_JAVA
+            self.stop_command = "stop"
             self.server_data = {}
             self.pid = None
 
@@ -128,6 +131,49 @@ class Server:
             if self.pid is not None and not psutil.pid_exists(self.pid):
                 break
 
+    def stop(self):
+        self.input_command(self.stop_command)
+
+    def get_status(self):
+        self.reload_data()
+        return self.pid is not None
+
+    def get_pid(self):
+        self.reload_data()
+        return self.pid
+
+    def get_edition(self):
+        self.reload_data()
+        return self.edition
+
+    def get_start_command(self):
+        self.reload_data()
+        return self.start_command
+
+    def get_stop_command(self):
+        self.reload_data()
+        return self.stop_command
+
+    def get_server_data(self):
+        self.reload_data()
+        return self.server_data
+
+    def set_edition(self, edition):
+        self.edition = edition
+        self.update_data()
+
+    def set_start_command(self, command):
+        self.start_command = command
+        self.update_data()
+
+    def set_stop_command(self, command):
+        self.stop_command = command
+        self.update_data()
+
+    def set_server_data(self, data):
+        self.server_data = data
+        self.update_data()
+
     def reload_data(self):
         skgc_path = self.path / Path("skgc/")
 
@@ -139,6 +185,7 @@ class Server:
 
         self.edition = config_data["edition"]
         self.start_command = config_data["start_command"]
+        self.stop_command = config_data["stop_command"]
         self.server_data = config_data["server_data"]
 
         status_path = self.path / Path("skgc/status.json")
@@ -159,6 +206,7 @@ class Server:
             {
                 "edition": self.edition,
                 "start_command": self.start_command,
+                "stop_command": self.stop_command,
                 "server_data": self.server_data,
             },
         )
@@ -227,11 +275,50 @@ def console(path):
             break
 
 
+def stop_server(path):
+    server = Server(path)
+    server.stop()
+    print("サーバーを停止します")
+
+
+def server_status(path):
+    server = Server(path)
+    print("起動: " + str(server.get_status()))
+    print("PID: " + str(server.get_pid()))
+    print("エディション: " + server.get_edition())
+    print("起動コマンド: " + server.get_start_command())
+    print("停止コマンド: " + server.get_stop_command())
+    print("サーバーデータ: " + str(server.get_server_data()))
+
+
+def set_edition(path, edition):
+    server = Server(path)
+    server.set_edition(edition)
+    print("設定しました")
+
+
+def set_start_command(path, command):
+    server = Server(path)
+    server.set_start_command(command)
+    print("設定しました")
+
+
+def set_stop_command(path, command):
+    server = Server(path)
+    server.set_stop_command(command)
+    print("設定しました")
+
+
 if __name__ == "__main__":
     fire.Fire(
         {
             "init": init_server,
             "start": start_server,
             "console": console,
+            "stop": stop_server,
+            "status": server_status,
+            "edition": set_edition,
+            "start_command": set_start_command,
+            "stop_command": set_stop_command,
         }
     )
