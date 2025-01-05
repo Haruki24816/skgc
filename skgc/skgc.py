@@ -12,6 +12,96 @@ DEFAULT_START_COMMAND_JAVA = "java -jar minecraft_server.jar --nogui"
 DEFAULT_START_COMMAND_BEDROCK = "LD_LIBRARY_PATH=. ./bedrock_server"
 
 
+def main():
+    fire.Fire(
+        {
+            "init": init_server,
+            "start": start_server,
+            "console": console,
+            "stop": stop_server,
+            "status": server_status,
+            "edition": set_edition,
+            "start_command": set_start_command,
+            "stop_command": set_stop_command,
+        }
+    )
+
+
+def init_server(path, edition):
+    server = Server(path)
+    server.init(edition)
+    print("サーバーを初期化しました")
+
+
+def start_server(path):
+    server = Server(path)
+    server.start()
+
+    def console_stdout():
+        for text in server.read_log():
+            print(text)
+
+    console_stdout_thread = threading.Thread(target=console_stdout)
+    console_stdout_thread.start()
+
+    while True:
+        try:
+            server.input_command(input())
+        except Exception:
+            break
+
+
+def console(path):
+    server = Server(path)
+
+    def console_stdout():
+        for text in server.read_log():
+            print(text)
+
+    console_stdout_thread = threading.Thread(target=console_stdout)
+    console_stdout_thread.start()
+
+    while True:
+        try:
+            server.input_command(input())
+        except Exception:
+            break
+
+
+def stop_server(path):
+    server = Server(path)
+    server.stop()
+    print("サーバーを停止します")
+
+
+def server_status(path):
+    server = Server(path)
+    print("起動: " + str(server.get_status()))
+    print("PID: " + str(server.get_pid()))
+    print("エディション: " + server.get_edition())
+    print("起動コマンド: " + server.get_start_command())
+    print("停止コマンド: " + server.get_stop_command())
+    print("サーバーデータ: " + str(server.get_server_data()))
+
+
+def set_edition(path, edition):
+    server = Server(path)
+    server.set_edition(edition)
+    print("設定しました")
+
+
+def set_start_command(path, command):
+    server = Server(path)
+    server.set_start_command(command)
+    print("設定しました")
+
+
+def set_stop_command(path, command):
+    server = Server(path)
+    server.set_stop_command(command)
+    print("設定しました")
+
+
 class Server:
 
     def __init__(self, path):
@@ -234,91 +324,5 @@ def save_json(path, data):
         json.dump(data, file)
 
 
-def init_server(path, edition):
-    server = Server(path)
-    server.init(edition)
-    print("サーバーを初期化しました")
-
-
-def start_server(path):
-    server = Server(path)
-    server.start()
-
-    def console_stdout():
-        for text in server.read_log():
-            print(text)
-
-    console_stdout_thread = threading.Thread(target=console_stdout)
-    console_stdout_thread.start()
-
-    while True:
-        try:
-            server.input_command(input())
-        except Exception:
-            break
-
-
-def console(path):
-    server = Server(path)
-
-    def console_stdout():
-        for text in server.read_log():
-            print(text)
-
-    console_stdout_thread = threading.Thread(target=console_stdout)
-    console_stdout_thread.start()
-
-    while True:
-        try:
-            server.input_command(input())
-        except Exception:
-            break
-
-
-def stop_server(path):
-    server = Server(path)
-    server.stop()
-    print("サーバーを停止します")
-
-
-def server_status(path):
-    server = Server(path)
-    print("起動: " + str(server.get_status()))
-    print("PID: " + str(server.get_pid()))
-    print("エディション: " + server.get_edition())
-    print("起動コマンド: " + server.get_start_command())
-    print("停止コマンド: " + server.get_stop_command())
-    print("サーバーデータ: " + str(server.get_server_data()))
-
-
-def set_edition(path, edition):
-    server = Server(path)
-    server.set_edition(edition)
-    print("設定しました")
-
-
-def set_start_command(path, command):
-    server = Server(path)
-    server.set_start_command(command)
-    print("設定しました")
-
-
-def set_stop_command(path, command):
-    server = Server(path)
-    server.set_stop_command(command)
-    print("設定しました")
-
-
 if __name__ == "__main__":
-    fire.Fire(
-        {
-            "init": init_server,
-            "start": start_server,
-            "console": console,
-            "stop": stop_server,
-            "status": server_status,
-            "edition": set_edition,
-            "start_command": set_start_command,
-            "stop_command": set_stop_command,
-        }
-    )
+    main()
