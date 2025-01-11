@@ -131,7 +131,7 @@ class Server:
         self.path = Path(path)
 
         if not self.path.is_dir():
-            raise Exception("存在しないディレクトリです")
+            raise ServerException("存在しないディレクトリです")
 
     # サーバー操作
 
@@ -139,7 +139,7 @@ class Server:
         server_data = self._get_server_data()
 
         if server_data["pid"] is not None:
-            raise Exception("起動済みです")
+            raise ServerException("起動済みです")
 
         process = subprocess.Popen(
             server_data["start_command"],
@@ -194,7 +194,7 @@ class Server:
         server_data = self._get_server_data()
 
         if server_data["pid"] is None:
-            raise Exception("起動していません")
+            raise ServerException("起動していません")
 
         stdin_path = self.path / Path("skgc/stdin")
 
@@ -211,7 +211,7 @@ class Server:
         server_data = self._get_server_data()
 
         if server_data["pid"] is None:
-            raise Exception("起動していません")
+            raise ServerException("起動していません")
 
         count = 0
         stdout_path = self.path / Path("skgc/stdout")
@@ -252,7 +252,7 @@ class Server:
                     x, y, z = float(x), float(y), float(z)
                     return x, y, z
 
-        raise Exception("座標を取得できませんでした")
+        raise ServerException("座標を取得できませんでした")
 
     def get_status(self):
         server_data = self._get_server_data()
@@ -386,7 +386,7 @@ class Server:
         json_path = self.path / Path("skgc/skgc.json")
 
         if not json_path.is_file():
-            raise Exception("初期化されていません")
+            raise ServerException("初期化されていません")
 
         server_data = open_json(json_path)
 
@@ -398,6 +398,10 @@ class Server:
     def _update_server_data(self, server_data):
         json_path = self.path / Path("skgc/skgc.json")
         save_json(json_path, server_data)
+
+
+class ServerException(Exception):
+    pass
 
 
 if __name__ == "__main__":
