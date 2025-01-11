@@ -1,3 +1,3 @@
-from .skgc import Server, main
+from .skgc import Server, main, ServerException
 
-__all__ = ["Server", "main"]
+__all__ = ["Server", "main", "ServerException"]
