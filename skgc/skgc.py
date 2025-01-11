@@ -1,12 +1,13 @@
 import fire
 import os
 from pathlib import Path
-import json
 import psutil
 import subprocess
 import threading
 import time
-from edit_properties_file import PropertiesFile
+from .edit_properties_file import PropertiesFile
+from .edit_json import open_json, save_json
+import uuid
 
 
 DEFAULT_START_COMMAND_JAVA = "java -jar minecraft_server.jar --nogui"
@@ -22,10 +23,11 @@ def main():
             "stop": stop_server,
             "status": server_status,
             "coordinate": get_player_coordinate,
+            "port": set_server_port,
             "edition": set_edition,
             "start_command": set_start_command,
             "stop_command": set_stop_command,
-            "port": set_server_port,
+            "alias": set_alias,
         }
     )
 
@@ -84,13 +86,19 @@ def server_status(path):
     print("エディション: " + server.get_edition())
     print("起動コマンド: " + server.get_start_command())
     print("停止コマンド: " + server.get_stop_command())
-    print("サーバーデータ: " + str(server.get_server_data()))
+    print("エイリアス: " + str(server.get_alias()))
     print("ポート: " + str(server.get_port()))
 
 
 def get_player_coordinate(path, player_name):
     server = Server(path)
     print(server.get_coordinate(player_name))
+
+
+def set_server_port(path, port):
+    server = Server(path)
+    server.set_port(port)
+    print("設定しました")
 
 
 def set_edition(path, edition):
@@ -111,9 +119,9 @@ def set_stop_command(path, command):
     print("設定しました")
 
 
-def set_server_port(path, port):
+def set_alias(path, alias):
     server = Server(path)
-    server.set_port(port)
+    server.set_alias(alias)
     print("設定しました")
 
 
@@ -125,45 +133,16 @@ class Server:
         if not self.path.is_dir():
             raise Exception("存在しないディレクトリです")
 
-        self.edition = ""
-        self.start_command = ""
-        self.stop_command = ""
-        self.server_data = {}
-
-        self.pid = None
-
-        try:
-            self.reload_data()
-        except Exception:
-            pass
-
-    def init(self, edition):
-        skgc_path = self.path / Path("skgc/")
-        os.makedirs(skgc_path, exist_ok=False)
-
-        if edition == "bedrock":
-            self.edition = "bedrock"
-            self.start_command = DEFAULT_START_COMMAND_BEDROCK
-            self.stop_command = "stop"
-            self.server_data = {}
-            self.pid = None
-        else:
-            self.edition = "java"
-            self.start_command = DEFAULT_START_COMMAND_JAVA
-            self.stop_command = "stop"
-            self.server_data = {}
-            self.pid = None
-
-        self.update_data()
+    # サーバー操作
 
     def start(self):
-        self.reload_data()
+        server_data = self._get_server_data()
 
-        if self.pid is not None:
+        if server_data["pid"] is not None:
             raise Exception("起動済みです")
 
         process = subprocess.Popen(
-            self.start_command,
+            server_data["start_command"],
             shell=True,
             cwd=self.path,
             stdin=subprocess.PIPE,
@@ -171,12 +150,11 @@ class Server:
             encoding="utf-8",
         )
 
-        self.pid = process.pid
-        self.update_data()
+        server_data["pid"] = process.pid
+        self._update_server_data(server_data)
 
         def stdout_loop():
             stdout_path = self.path / Path("skgc/stdout")
-            stdout_path.touch()
             with open(stdout_path, mode="w", encoding="utf-8") as file:
                 file.write("")
             while True:
@@ -190,7 +168,6 @@ class Server:
         def stdin_loop():
             stdout_path = self.path / Path("skgc/stdout")
             stdin_path = self.path / Path("skgc/stdin")
-            stdin_path.touch()
             while True:
                 time.sleep(1)
                 if process.poll() is not None:
@@ -214,20 +191,26 @@ class Server:
         stdin_loop_thread.start()
 
     def input_command(self, command):
-        self.reload_data()
+        server_data = self._get_server_data()
 
-        if self.pid is None:
+        if server_data["pid"] is None:
             raise Exception("起動していません")
 
         stdin_path = self.path / Path("skgc/stdin")
 
-        with open(stdin_path, mode="a", encoding="utf-8") as file:
+        with open(stdin_path, mode="w", encoding="utf-8") as file:
             file.write(command + "\n")
 
-    def read_log(self, loop=True):
-        self.reload_data()
+    def stop(self):
+        server_data = self._get_server_data()
+        self.input_command(server_data["stop_command"])
 
-        if self.pid is None:
+    # サーバーデータ取得
+
+    def read_log(self, loop=True):
+        server_data = self._get_server_data()
+
+        if server_data["pid"] is None:
             raise Exception("起動していません")
 
         count = 0
@@ -242,14 +225,15 @@ class Server:
                 count += 1
             if not loop:
                 break
-            if self.pid is not None and not psutil.pid_exists(self.pid):
+            if server_data["pid"] is not None and not psutil.pid_exists(
+                server_data["pid"]
+            ):
                 break
 
-    def stop(self):
-        self.input_command(self.stop_command)
-
     def get_coordinate(self, player_name):
-        if self.edition == "bedrock":
+        server_data = self._get_server_data()
+
+        if server_data["edition"] == "bedrock":
             lines = self._get_command_response(
                 f"execute as {player_name} at {player_name} run tp ~ ~ ~"
             )
@@ -271,33 +255,18 @@ class Server:
         raise Exception("座標を取得できませんでした")
 
     def get_status(self):
-        self.reload_data()
-        return self.pid is not None
+        server_data = self._get_server_data()
+        return server_data["pid"] is not None
 
     def get_pid(self):
-        self.reload_data()
-        return self.pid
-
-    def get_edition(self):
-        self.reload_data()
-        return self.edition
-
-    def get_start_command(self):
-        self.reload_data()
-        return self.start_command
-
-    def get_stop_command(self):
-        self.reload_data()
-        return self.stop_command
-
-    def get_server_data(self):
-        self.reload_data()
-        return self.server_data
+        server_data = self._get_server_data()
+        return server_data["pid"]
 
     def get_port(self):
+        server_data = self._get_server_data()
         properties = PropertiesFile(self.path / Path("server.properties"))
 
-        if self.edition == "bedrock":
+        if server_data["edition"] == "bedrock":
             return {
                 "server-port": properties["server-port"],
                 "server-portv6": properties["server-portv6"],
@@ -309,26 +278,13 @@ class Server:
                 "server-port": properties["server-port"],
             }
 
-    def set_edition(self, edition):
-        self.edition = edition
-        self.update_data()
-
-    def set_start_command(self, command):
-        self.start_command = command
-        self.update_data()
-
-    def set_stop_command(self, command):
-        self.stop_command = command
-        self.update_data()
-
-    def set_server_data(self, data):
-        self.server_data = data
-        self.update_data()
+    # サーバーデータ編集
 
     def set_port(self, port):
+        server_data = self._get_server_data()
         properties = PropertiesFile(self.path / Path("server.properties"))
 
-        if self.edition == "bedrock":
+        if server_data["edition"] == "bedrock":
             properties["server-port"] = port  # 19132
             properties["server-portv6"] = port + 1  # 19133
         else:
@@ -337,6 +293,81 @@ class Server:
             properties["server-port"] = port  # 25565
 
         properties.save()
+
+    # サーバー管理データ取得
+
+    def get_edition(self):
+        server_data = self._get_server_data()
+        return server_data["edition"]
+
+    def get_start_command(self):
+        server_data = self._get_server_data()
+        return server_data["start_command"]
+
+    def get_stop_command(self):
+        server_data = self._get_server_data()
+        return server_data["stop_command"]
+
+    def get_alias(self):
+        server_data = self._get_server_data()
+        return server_data["alias"]
+
+    # サーバー管理データ編集
+
+    def init(self, edition):
+        skgc_path = self.path / Path("skgc/")
+        os.makedirs(skgc_path, exist_ok=True)
+
+        json_path = skgc_path / Path("skgc.json")
+        json_path.touch()
+
+        stdin_path = skgc_path / Path("stdin")
+        stdin_path.touch()
+
+        stdout_path = skgc_path / Path("stdout")
+        stdout_path.touch()
+
+        server_data = {}
+        init_id = str(uuid.uuid4())
+
+        if edition == "bedrock":
+            server_data["edition"] = "bedrock"
+            server_data["start_command"] = DEFAULT_START_COMMAND_BEDROCK
+            server_data["stop_command"] = "stop"
+            server_data["alias"] = ""
+            server_data["pid"] = None
+            server_data["init_id"] = init_id
+        else:
+            server_data["edition"] = "java"
+            server_data["start_command"] = DEFAULT_START_COMMAND_JAVA
+            server_data["stop_command"] = "stop"
+            server_data["alias"] = ""
+            server_data["pid"] = None
+            server_data["init_id"] = init_id
+
+        self._update_server_data(server_data)
+
+    def set_edition(self, edition):
+        server_data = self._get_server_data()
+        server_data["edition"] = edition
+        self._update_server_data(server_data)
+
+    def set_start_command(self, command):
+        server_data = self._get_server_data()
+        server_data["start_command"] = command
+        self._update_server_data(server_data)
+
+    def set_stop_command(self, command):
+        server_data = self._get_server_data()
+        server_data["stop_command"] = command
+        self._update_server_data(server_data)
+
+    def set_alias(self, alias):
+        server_data = self._get_server_data()
+        server_data["alias"] = alias
+        self._update_server_data(server_data)
+
+    # 内部用メソッド
 
     def _get_command_response(self, command):
         self.input_command(command)
@@ -351,64 +382,22 @@ class Server:
 
         return list(reversed(lines[split_index:]))
 
-    def reload_data(self):
-        skgc_path = self.path / Path("skgc/")
+    def _get_server_data(self):
+        json_path = self.path / Path("skgc/skgc.json")
 
-        if not skgc_path.is_dir():
+        if not json_path.is_file():
             raise Exception("初期化されていません")
 
-        config_path = self.path / Path("skgc/config.json")
-        config_data = open_json(config_path)
+        server_data = open_json(json_path)
 
-        self.edition = config_data["edition"]
-        self.start_command = config_data["start_command"]
-        self.stop_command = config_data["stop_command"]
-        self.server_data = config_data["server_data"]
+        if server_data["pid"] is not None and not psutil.pid_exists(server_data["pid"]):
+            server_data["pid"] = None
 
-        status_path = self.path / Path("skgc/status.json")
-        status_data = open_json(status_path)
+        return server_data
 
-        self.pid = status_data["pid"]
-
-        if self.pid is not None and not psutil.pid_exists(self.pid):
-            self.pid = None
-
-        self.update_data()
-
-    def update_data(self):
-        config_path = self.path / Path("skgc/config.json")
-
-        save_json(
-            config_path,
-            {
-                "edition": self.edition,
-                "start_command": self.start_command,
-                "stop_command": self.stop_command,
-                "server_data": self.server_data,
-            },
-        )
-
-        status_path = self.path / Path("skgc/status.json")
-
-        save_json(
-            status_path,
-            {
-                "pid": self.pid,
-            },
-        )
-
-
-def open_json(path):
-    if path.is_file():
-        with open(path, "r") as file:
-            return json.load(file)
-    else:
-        return {}
-
-
-def save_json(path, data):
-    with open(path, "w") as file:
-        json.dump(data, file)
+    def _update_server_data(self, server_data):
+        json_path = self.path / Path("skgc/skgc.json")
+        save_json(json_path, server_data)
 
 
 if __name__ == "__main__":

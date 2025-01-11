@@ -8,9 +8,9 @@ class PropertiesFile(dict):
 
         with open(path) as file:
             lines = file.readlines()
-        
+
         data = {}
-        
+
         for line in lines:
             line_without_comment = line.split("#")[0]
             if len(line_without_comment.split()) == 0:
@@ -21,13 +21,13 @@ class PropertiesFile(dict):
             data[key] = value
 
         super().__init__(data)
-    
+
     def save(self):
         text_data = ""
 
         for key in self:
             value = self[key]
             text_data += f"{key}={value}\n"
-        
+
         with open(self.properties_file_path, mode="w") as file:
             file.write(text_data)
