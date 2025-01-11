@@ -6,6 +6,7 @@ import psutil
 import subprocess
 import threading
 import time
+from edit_properties_file import PropertiesFile
 
 
 DEFAULT_START_COMMAND_JAVA = "java -jar minecraft_server.jar --nogui"
@@ -20,9 +21,11 @@ def main():
             "console": console,
             "stop": stop_server,
             "status": server_status,
+            "coordinate": get_player_coordinate,
             "edition": set_edition,
             "start_command": set_start_command,
             "stop_command": set_stop_command,
+            "port": set_server_port,
         }
     )
 
@@ -82,6 +85,12 @@ def server_status(path):
     print("起動コマンド: " + server.get_start_command())
     print("停止コマンド: " + server.get_stop_command())
     print("サーバーデータ: " + str(server.get_server_data()))
+    print("ポート: " + str(server.get_port()))
+
+
+def get_player_coordinate(path, player_name):
+    server = Server(path)
+    print(server.get_coordinate(player_name))
 
 
 def set_edition(path, edition):
@@ -102,10 +111,19 @@ def set_stop_command(path, command):
     print("設定しました")
 
 
+def set_server_port(path, port):
+    server = Server(path)
+    server.set_port(port)
+    print("設定しました")
+
+
 class Server:
 
     def __init__(self, path):
         self.path = Path(path)
+
+        if not self.path.is_dir():
+            raise Exception("存在しないディレクトリです")
 
         self.edition = ""
         self.start_command = ""
@@ -170,6 +188,7 @@ class Server:
                     break
 
         def stdin_loop():
+            stdout_path = self.path / Path("skgc/stdout")
             stdin_path = self.path / Path("skgc/stdin")
             stdin_path.touch()
             while True:
@@ -180,7 +199,10 @@ class Server:
                     lines = file.readlines()
                 if len(lines) < 1:
                     continue
-                process.stdin.write(lines[0])
+                line = lines[0]
+                with open(stdout_path, mode="a", encoding="utf-8") as file:
+                    file.write("\n" + line.rstrip())
+                process.stdin.write(line)
                 process.stdin.flush()
                 with open(stdin_path, mode="w", encoding="utf-8") as file:
                     file.write("")
@@ -202,7 +224,7 @@ class Server:
         with open(stdin_path, mode="a", encoding="utf-8") as file:
             file.write(command + "\n")
 
-    def read_log(self):
+    def read_log(self, loop=True):
         self.reload_data()
 
         if self.pid is None:
@@ -218,11 +240,35 @@ class Server:
             while len(lines) > count:
                 yield lines[count]
                 count += 1
+            if not loop:
+                break
             if self.pid is not None and not psutil.pid_exists(self.pid):
                 break
 
     def stop(self):
         self.input_command(self.stop_command)
+
+    def get_coordinate(self, player_name):
+        if self.edition == "bedrock":
+            lines = self._get_command_response(
+                f"execute as {player_name} at {player_name} run tp ~ ~ ~"
+            )
+            for line in lines:
+                if f"Teleported {player_name} to" in line:
+                    x, y, z = line.split(f"Teleported {player_name} to")[-1].split(",")
+                    x, y, z = float(x), float(y), float(z)
+                    return x, y, z
+        else:
+            lines = self._get_command_response(
+                f"execute as {player_name} at {player_name} run tp ~ ~ ~"
+            )
+            for line in lines:
+                if f"Teleported {player_name} to" in line:
+                    x, y, z = line.split(f"Teleported {player_name} to")[-1].split(",")
+                    x, y, z = float(x), float(y), float(z)
+                    return x, y, z
+
+        raise Exception("座標を取得できませんでした")
 
     def get_status(self):
         self.reload_data()
@@ -248,6 +294,21 @@ class Server:
         self.reload_data()
         return self.server_data
 
+    def get_port(self):
+        properties = PropertiesFile(self.path / Path("server.properties"))
+
+        if self.edition == "bedrock":
+            return {
+                "server-port": properties["server-port"],
+                "server-portv6": properties["server-portv6"],
+            }
+        else:
+            return {
+                "query.port": properties["query.port"],
+                "rcon.port": properties["rcon.port"],
+                "server-port": properties["server-port"],
+            }
+
     def set_edition(self, edition):
         self.edition = edition
         self.update_data()
@@ -263,6 +324,32 @@ class Server:
     def set_server_data(self, data):
         self.server_data = data
         self.update_data()
+
+    def set_port(self, port):
+        properties = PropertiesFile(self.path / Path("server.properties"))
+
+        if self.edition == "bedrock":
+            properties["server-port"] = port  # 19132
+            properties["server-portv6"] = port + 1  # 19133
+        else:
+            properties["query.port"] = port  # 25565
+            properties["rcon.port"] = port + 10  # 25575
+            properties["server-port"] = port  # 25565
+
+        properties.save()
+
+    def _get_command_response(self, command):
+        self.input_command(command)
+        time.sleep(1)
+
+        lines = list(self.read_log(loop=False))
+        split_index = 0
+
+        for num in range(len(lines)):
+            if lines[num].strip() == command:
+                split_index = num
+
+        return list(reversed(lines[split_index:]))
 
     def reload_data(self):
         skgc_path = self.path / Path("skgc/")
