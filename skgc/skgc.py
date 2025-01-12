@@ -28,6 +28,7 @@ def main():
             "start_command": set_start_command,
             "stop_command": set_stop_command,
             "alias": set_alias,
+            "management_data": set_management_data,
         }
     )
 
@@ -86,7 +87,8 @@ def server_status(path):
     print("エディション: " + server.get_edition())
     print("起動コマンド: " + server.get_start_command())
     print("停止コマンド: " + server.get_stop_command())
-    print("エイリアス: " + str(server.get_alias()))
+    print("エイリアス: " + server.get_alias())
+    print("管理用データ: " + str(server.get_management_data()))
     print("ポート: " + str(server.get_port()))
 
 
@@ -122,6 +124,12 @@ def set_stop_command(path, command):
 def set_alias(path, alias):
     server = Server(path)
     server.set_alias(alias)
+    print("設定しました")
+
+
+def set_management_data(path, management_data):
+    server = Server(path)
+    server.set_management_data(management_data)
     print("設定しました")
 
 
@@ -312,6 +320,10 @@ class Server:
         server_data = self._get_server_data()
         return server_data["alias"]
 
+    def get_management_data(self):
+        server_data = self._get_server_data()
+        return server_data["management_data"]
+
     # サーバー管理データ編集
 
     def init(self, edition):
@@ -335,6 +347,7 @@ class Server:
             server_data["start_command"] = DEFAULT_START_COMMAND_BEDROCK
             server_data["stop_command"] = "stop"
             server_data["alias"] = ""
+            server_data["management_data"] = {}
             server_data["pid"] = None
             server_data["init_id"] = init_id
         else:
@@ -342,6 +355,7 @@ class Server:
             server_data["start_command"] = DEFAULT_START_COMMAND_JAVA
             server_data["stop_command"] = "stop"
             server_data["alias"] = ""
+            server_data["management_data"] = {}
             server_data["pid"] = None
             server_data["init_id"] = init_id
 
@@ -365,6 +379,11 @@ class Server:
     def set_alias(self, alias):
         server_data = self._get_server_data()
         server_data["alias"] = alias
+        self._update_server_data(server_data)
+
+    def set_management_data(self, management_data):
+        server_data = self._get_server_data()
+        server_data["management_data"] = management_data
         self._update_server_data(server_data)
 
     # 内部用メソッド
