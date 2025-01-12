@@ -28,7 +28,6 @@ def main():
             "start_command": set_start_command,
             "stop_command": set_stop_command,
             "alias": set_alias,
-            "management_data": set_management_data,
         }
     )
 
@@ -124,12 +123,6 @@ def set_stop_command(path, command):
 def set_alias(path, alias):
     server = Server(path)
     server.set_alias(alias)
-    print("設定しました")
-
-
-def set_management_data(path, management_data):
-    server = Server(path)
-    server.set_management_data(management_data)
     print("設定しました")
 
 
