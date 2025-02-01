@@ -55,6 +55,7 @@ class Server(object):
         server_data["init_id"] = init_id
         server_data["status"] = False
         server_data["alias"] = self.path.name
+        server_data["misc"] = {}
 
         if edition == "bedrock":
             server_data["edition"] = "bedrock"
@@ -291,4 +292,13 @@ class Server(object):
     async def set_stop_command(self, stop_command):
         server_data = await self._load_server_data()
         server_data["stop_command"] = stop_command
+        await self._save_server_data(server_data)
+    
+    async def get_misc_data(self):
+        server_data = await self._load_server_data()
+        return server_data["misc"]
+
+    async def set_misc_data(self, data):
+        server_data = await self._load_server_data()
+        server_data["misc"] = data
         await self._save_server_data(server_data)

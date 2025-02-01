@@ -91,6 +91,7 @@ async def get_server_status(path):
     print("起動コマンド: " + await server.get_start_command())
     print("停止コマンド: " + await server.get_stop_command())
     print("ポート情報: " + str(await server.get_port()))
+    print("その他: " + str(await server.get_misc_data()))
 
 
 async def set_server_port(path, port):
