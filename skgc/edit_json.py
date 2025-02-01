@@ -1,19 +1,17 @@
-from pathlib import Path
+import aiofiles
 import json
 
 
-def open_json(path):
-    path = Path(path)
-
-    if path.is_file():
-        with open(path, "r") as file:
-            return json.load(file)
-    else:
+async def load_json(path):
+    try:
+        async with aiofiles.open(path) as file:
+            json_text = await file.read()
+            return json.loads(json_text)
+    except FileNotFoundError:
         return {}
 
 
-def save_json(path, data):
-    path = Path(path)
-
-    with open(path, "w") as file:
-        json.dump(data, file)
+async def save_json(path, data):
+    async with aiofiles.open(path, "w") as file:
+        json_text = json.dumps(data)
+        await file.write(json_text)

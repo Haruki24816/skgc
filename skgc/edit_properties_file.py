@@ -1,33 +1,29 @@
-from pathlib import Path
+import aiofiles
 
 
-class PropertiesFile(dict):
+async def load_properties_file(path):
+    async with aiofiles.open(path) as file:
+        lines = await file.readlines()
 
-    def __init__(self, path):
-        self.properties_file_path = Path(path)
+    data = {}
 
-        with open(path) as file:
-            lines = file.readlines()
+    for line in lines:
+        line_without_comment = line.split("#")[0]
+        if len(line_without_comment.split()) == 0:
+            continue
+        items = line_without_comment.strip().split("=")
+        key = items[0]
+        value = items[1]
+        data[key] = value
+    
+    return data
 
-        data = {}
 
-        for line in lines:
-            line_without_comment = line.split("#")[0]
-            if len(line_without_comment.split()) == 0:
-                continue
-            items = line_without_comment.strip().split("=")
-            key = items[0]
-            value = items[1]
-            data[key] = value
+async def save_properties_file(path, data):
+    text_data = ""
 
-        super().__init__(data)
+    for key, value in data.items():
+        text_data += f"{key}={value}\n"
 
-    def save(self):
-        text_data = ""
-
-        for key in self:
-            value = self[key]
-            text_data += f"{key}={value}\n"
-
-        with open(self.properties_file_path, mode="w") as file:
-            file.write(text_data)
+    async with aiofiles.open(path, "w") as file:
+        await file.write(text_data)
