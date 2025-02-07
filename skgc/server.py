@@ -177,6 +177,8 @@ class Server(object):
     async def stop(self):
         server_data = await self._load_server_data()
         await self.input_command(server_data["stop_command"])
+        server_data["status"] = False
+        await self._save_server_data(server_data)
 
     async def get_coordinate(self, player_name):
         server_data = await self._load_server_data()
