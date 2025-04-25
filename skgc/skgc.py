@@ -19,6 +19,7 @@ def main():
             "edition": set_server_edition,
             "start_command": set_server_start_command,
             "stop_command": set_server_stop_command,
+            "update": update_server,
         }
     )
 
@@ -122,6 +123,12 @@ async def set_server_stop_command(path, command):
     server = Server(path)
     await server.set_stop_command(command)
     print("設定しました")
+
+
+async def update_server(path, url):
+    server = Server(path)
+    await server.update(url)
+    print("更新完了")
 
 
 if __name__ == "__main__":

@@ -6,9 +6,10 @@ from pathlib import Path
 from . import server_exceptions
 from .edit_properties_file import load_properties_file, save_properties_file
 from .edit_json import load_json, save_json
+from .update import update_java_server, update_bedrock_server
 
 
-DEFAULT_START_COMMAND_JAVA = "java -jar minecraft_server.jar --nogui"
+DEFAULT_START_COMMAND_JAVA = "java -jar server.jar --nogui"
 DEFAULT_STOP_COMMAND_JAVA = "stop"
 DEFAULT_START_COMMAND_BEDROCK = "LD_LIBRARY_PATH=. ./bedrock_server"
 DEFAULT_STOP_COMMAND_BEDROCK = "stop"
@@ -304,3 +305,16 @@ class Server(object):
         server_data = await self._load_server_data()
         server_data["misc"] = data
         await self._save_server_data(server_data)
+
+    # バージョン更新機能
+
+    async def update(self, url):
+        server_data = await self._load_server_data()
+
+        if server_data["status"]:
+            raise server_exceptions.ServerStartingException("起動しています")
+        
+        if server_data["edition"] == "bedrock":
+            update_bedrock_server(self.path, url)
+        else:
+            update_java_server(self.path, url)
