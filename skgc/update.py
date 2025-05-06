@@ -75,10 +75,13 @@ def download(url, path, user_agent):
 def delete_item(path):
     path = Path(path)
 
-    if path.is_file():
-        os.remove(path)
-    else:
-        shutil.rmtree(path)
+    try:
+        if path.is_file():
+            os.remove(path)
+        else:
+            shutil.rmtree(path)
+    except FileNotFoundError:
+        pass
 
 
 def copy_item(path, destination_path):
