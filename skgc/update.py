@@ -2,6 +2,7 @@ import os
 import shutil
 import urllib.request
 from pathlib import Path
+import subprocess
 
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
@@ -54,6 +55,10 @@ def update_bedrock_server(path, url):
     for item in copy_items:
         item_path = backup_path / item
         copy_item(item_path, path)
+
+    # 実行権限
+
+    subprocess.run(["chmod", "755", path / "bedrock_server"])
 
 
 def make_empty_directory(path):
